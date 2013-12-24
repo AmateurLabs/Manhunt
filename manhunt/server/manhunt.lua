@@ -1,4 +1,7 @@
-
+--[[
+    Manhunt v0.7
+    Created by Maroy of Amateur Labs
+]]
 
 --[[
     Wrapper class for each player who joins the Manhunt
@@ -196,11 +199,24 @@ function Manhunt:PostTick()
         self:MessageGlobal( "Manhunt is underway! /hunt to enter." )
         self.last_broadcast = os.time()
     end
+    
+    local minDist = 99999999999
+    
+    if self.it then
+        for k,v in pairs(self.players) do
+            local dist = Vector3.Distance(v.player:GetPosition(), self.it:GetPosition())
+            if dist < minDist and self.it ~= v.player then
+                minDist = dist
+            end
+        end
+    end
 	
     for k,v in pairs(self.players) do
         local randIt = math.random() < 1 / table.count(self.players)
 		if self.it then
-			Network:Send(v.player, "ManhuntUpdateItPos", self.it:GetPosition())
+            if minDist < 1024 then
+                Network:Send(v.player, "ManhuntUpdateItPos", self.it:GetPosition())
+            end
         elseif (randIt and self.oldIt and self.oldIt ~= player) or #self.players > 1 then
             self:SetIt( v )
         end

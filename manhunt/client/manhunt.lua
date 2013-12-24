@@ -1,3 +1,8 @@
+--[[
+    Manhunt v0.7
+    Created by Maroy of Amateur Labs
+]]
+
 class 'Manhunt'
 
 function Manhunt:__init()
@@ -17,7 +22,6 @@ function Manhunt:__init()
 	self.oob = false
     self.pts = 0
     self.scores = {}
-	self.itPos = Vector3(0, 0, 0)
     self.inMode = false
 end
 
@@ -39,12 +43,8 @@ function Manhunt:ExitBorder()
 end
 
 function Manhunt:UpdateItPos(pos)
-	if Vector3.Distance(pos, LocalPlayer:GetPosition()) > 10 then
-		Waypoint:SetPosition(pos)
-	else
-		Waypoint:Remove()
-	end
-	self.itPos = pos
+    Waypoint:Remove()
+	Waypoint:SetPosition(pos)
 end
 
 function Manhunt:UpdatePoints(pts)
@@ -82,7 +82,6 @@ function Manhunt:RightText( msg, y, color )
 end
 
 function Manhunt:Render()
-    --if self.timer == nil then return end
     if not self.inMode then return end 
     if Game:GetState() ~= GUIState.Game then return end
     
@@ -94,17 +93,6 @@ function Manhunt:Render()
         self:RightText( ""..i..". "..self.scores[i].name..": "..self.scores[i].pts, 80 + i * 16, color )
     end
 	if not self.oob then return end
-	--local dist = Vector3.Distance(LocalPlayer:GetPosition(), self.itPos)
-	--local pos = Render:WorldToScreen(self.itPos)
-	--Render:DrawCircle(pos, (dist / 1024), Color(255, 0, 0, 191))
-	
-    --[[
-	local time = 20 - math.floor(math.clamp( self.timer:GetSeconds(), 0, 20 ))
-
-    if time <= 0 then return end
-
-    local text = tostring(time)
-	]]
 	
 	local text = "Out of Bounds!"
     local text_width = Render:GetTextWidth( text, TextSize.Gigantic )
