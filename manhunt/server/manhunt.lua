@@ -1,11 +1,8 @@
 --[[
-    Manhunt v0.7
+    Manhunt v0.8
     Created by Maroy of Amateur Labs
 ]]
 
---[[
-    Wrapper class for each player who joins the Manhunt
-]]
 class "ManhuntPlayer"
 function ManhuntPlayer:__init(player, Manhunt)
     self.Manhunt = Manhunt
@@ -13,38 +10,37 @@ function ManhuntPlayer:__init(player, Manhunt)
     self.start_pos = player:GetPosition()
     self.start_world = player:GetWorld()
     self.inventory = player:GetInventory()
-	self.color = player:GetColor()
-	self.oob = false
+    self.color = player:GetColor()
+    self.oob = false
     self.pts = 0
-    self.canKill = false
+    self.dead = false
+    self.loaded = false
 end
 
 function ManhuntPlayer:Enter()
     self.player:SetWorld(self.Manhunt.world)
-    
     self:Spawn()
-	
     Network:Send( self.player, "ManhuntEnter" )
 end
 
 function ManhuntPlayer:Spawn()
-    self.canKill = false
-	local spawn = self.Manhunt.spawns[ math.random(1, #self.Manhunt.spawns) ]
-	self.player:Teleport(spawn, Angle())
+  if self.player:GetHealth() <= 0.1 then return end
+    local spawn = self.Manhunt.spawns[ math.random(1, #self.Manhunt.spawns) ]
+    self.player:Teleport(spawn, Angle())
     self.player:ClearInventory()
-	if self.Manhunt.it == self.player then
-		self.player:SetColor( Color(255, 0, 0) )
-		self.player:GiveWeapon(0, Weapon(Weapon.Revolver))
-		self.player:GiveWeapon(1, Weapon(Weapon.Revolver))
-		self.player:GiveWeapon(2, Weapon(Weapon.MachineGun))
-	else
-		self.player:GiveWeapon(0, Weapon(Weapon.Revolver))
-		self.player:GiveWeapon(1, Weapon(Weapon.Revolver))
-		self.player:GiveWeapon(2, Weapon(Weapon.Sniper))
-		self.player:SetColor( Color(0, 255, 0) )
-	end
+    if self.Manhunt.it == self.player then
+        self.player:SetColor( Color(255, 0, 0) )
+        self.player:GiveWeapon(0, Weapon(Weapon.Revolver))
+        --self.player:GiveWeapon(1, Weapon(Weapon.Revolver))
+        self.player:GiveWeapon(2, Weapon(Weapon.MachineGun))
+    else
+        self.player:GiveWeapon(0, Weapon(Weapon.Revolver))
+        --self.player:GiveWeapon(1, Weapon(Weapon.Revolver))
+        self.player:GiveWeapon(2, Weapon(Weapon.Sniper))
+        self.player:SetColor( Color(0, 255, 0) )
+    end
     self.player:SetHealth(50)
-    self.canKill = true
+    self.dead = false
 end
 
 function ManhuntPlayer:Leave()
@@ -59,10 +55,6 @@ function ManhuntPlayer:Leave()
     Network:Send( self.player, "ManhuntExit" )
 end
 
---[[
-    Actual Manhunt gamemode.
-    TODO: Add a name so that you can have many Manhunt modes running through the single script.
-]]
 class "Manhunt"
 function table.find(l, f)
   for _, v in ipairs(l) do
@@ -73,58 +65,19 @@ function table.find(l, f)
   return nil
 end
 
-local Ids = {
-    --[[4,
-    8,
-    33,
-    40,
-    41,
-    42,
-    68,
-    71,
-    76,]]
-	11,
-	36,
-	90,
-	61,
-	17,
-	83
-}
-
--- local Ids = {
-    -- 2
--- }
-
-function GetRandomVehicleId()
-    return Ids[math.random(1 , #Ids)]
-end
-
 function Manhunt:CreateSpawns()
-    --local center = Vector3( 6923.261230, 760, 1035.510010 )
-    local cnt = 0
-    local blacklist = { 0, 174, 19, 18, 17, 16, 170, 171, 172, 173, 151, 152, 153, 154, 155, 129, 128, 127, 126, 125, 110, 109, 108, 107, 84, 83, 82, 81, 80, 64, 63, 62, 61, 39, 38, 36, 35 }
     local dist = self.maxDist - 128
 	
     for j=0,8,1 do
     for i=0,360,1 do        
-        if table.find(blacklist, cnt) == nil then
-            local x = self.center.x + (math.sin( 2 * i * math.pi/360 ) * dist * math.random())
-            local y = self.center.y 
-            local z = self.center.z + (math.cos( 2 * i * math.pi/360 ) * dist * math.random())
-            
-            local radians = math.rad(360 - i)
-            
-            angle = Angle.AngleAxis(radians , Vector3(0 , -1 , 0))
-
-            --local vehicle = Vehicle.Create( GetRandomVehicleId(), Vector3( x, y, z ), angle )
-            
-            --vehicle:SetEnabled( true )
-            --vehicle:SetWorld( self.world )
-
-            --self.vehicles[vehicle:GetId()] = vehicle
-            table.insert(self.spawns, Vector3( x, y+400, z ))
-        end
-        cnt = cnt + 1
+          local x = self.center.x + (math.sin( 2 * i * math.pi/360 ) * dist * math.random())
+          local y = self.center.y 
+          local z = self.center.z + (math.cos( 2 * i * math.pi/360 ) * dist * math.random())
+          
+          local radians = math.rad(360 - i)
+          
+          angle = Angle.AngleAxis(radians , Vector3(0 , -1 , 0))
+          table.insert(self.spawns, Vector3( x, y, z ))
     end
     end
 end
@@ -141,27 +94,29 @@ function Manhunt:UpdateScores()
 end
 
 function Manhunt:SetIt( v )
+    if self.it ~= nil then Network:Send( self.it, "ManhuntUpdateIt", false ) end
     self.it = v.player
     self.oldIt = v.player
     self:MessagePlayers( self.it:GetName().." is now the Hunted!" )
+    Network:Send( self.it, "ManhuntUpdateIt", true )
     v:Spawn()
     self:UpdateScores()
 end
 
-function Manhunt:__init( spawn )
+function Manhunt:__init( spawn, maxDist )
     self.world = World.Create()
     self.world:SetTimeStep( 10 )
     self.world:SetTime( 0 )
     
     self.spawns = {}
-	self.center = Vector3(-13790, 299, -13625)
-	self.maxDist = 2048
+	  self.center = spawn
+	  self.maxDist = maxDist
 
-    self.vehicles = {}
     self:CreateSpawns()
     
     self.players = {}
     self.last_broadcast = 0
+    self.last_wp = 0
 	
     Events:Subscribe( "PlayerChat", self, self.ChatMessage )
     Events:Subscribe( "ModuleUnload", self, self.ModuleUnload )
@@ -180,13 +135,6 @@ function Manhunt:__init( spawn )
 end
 
 function Manhunt:ModuleUnload()
-    -- Remove the vehicles we have spawned
-    for k,v in pairs(self.vehicles) do
-        v:Remove()
-    end
-    self.vehicles = {}
-    
-    -- Restore the players to their original position and world.
     for k,v in pairs(self.players) do
         v:Leave()
         self:MessagePlayer(v.player, "Manhunt script unloaded. You have been restored to your starting pos.")
@@ -200,7 +148,7 @@ function Manhunt:PostTick()
         self.last_broadcast = os.time()
     end
     
-    local minDist = 99999999999
+    --[[local minDist = 99999999999
     
     if self.it then
         for k,v in pairs(self.players) do
@@ -210,40 +158,45 @@ function Manhunt:PostTick()
             end
         end
     end
+    
+    if minDist < 1024 and os.difftime(os.time(), self.last_wp) >= 5 then
+        for k,v in pairs(self.players) do
+            Network:Send(v.player, "ManhuntUpdateItPos", self.it:GetPosition())
+        end
+    end
+    ]]
 	
     for k,v in pairs(self.players) do
         local randIt = math.random() < 1 / table.count(self.players)
-		if self.it then
-            if minDist < 1024 then
-                Network:Send(v.player, "ManhuntUpdateItPos", self.it:GetPosition())
-            end
+        if self.it then
+        
         elseif (randIt and self.oldIt and self.oldIt ~= player) or #self.players > 1 then
             self:SetIt( v )
         end
-        if not v.canKill then
-            local dist = Vector3.Distance(v.player:GetPosition(), self.center)
-            if v.oob and dist < self.maxDist - 64 then
+        local dist = Vector3.Distance(v.player:GetPosition(), self.center)
+        if v.loaded then
+            if v.oob and dist < self.maxDist - 32 then
                 Network:Send( v.player, "ManhuntExitBorder" )
                 v.oob = false
             end
-            if not v.oob and dist > self.maxDist - 64 then
+            if not v.oob and dist > self.maxDist - 32 then
                 Network:Send( v.player, "ManhuntEnterBorder" )
                 v.oob = true
             end
-            if dist > self.maxDist and v.player:GetHealth() > 0.1 then
+            if not v.dead and dist > self.maxDist then
                 v.player:SetHealth(0)
+                v.dead = true
+                v.loaded = false
                 self:MessagePlayer ( v.player, "You left the playing area!" )
             end
+        else
+            if Vector3.Distance(v.player:GetPosition(), self.center) < self.maxDist then v.loaded = true end
         end
     end
 end
 
 function Manhunt:IsInManhunt(player)
     return self.players[player:GetId()] ~= nil
-end
-
-function Manhunt:GetDomePlayer(player)
-    return self.players[player:GetId()]
 end
 
 function Manhunt:MessagePlayer(player, message)
@@ -283,6 +236,7 @@ function Manhunt:EnterManhunt(player)
     end
     
     self.players[player:GetId()] = p
+    Network:Send( player, "ManhuntUpdateIt", self.it == player )
     self:UpdateScores()
 end
 
@@ -293,7 +247,7 @@ function Manhunt:LeaveManhunt(player)
     
     self:MessagePlayer(player, "You have left the Manhunt! Type /hunt to enter at any time.")    
     self.players[player:GetId()] = nil
-	if self.it == player then self.it = nil end
+    if self.it == player then self.it = nil end
     self:UpdateScores()
 end
 
@@ -301,8 +255,15 @@ function Manhunt:ChatMessage(args)
     local msg = args.text
     local player = args.player
     
+    
     if ( msg:sub(1, 1) ~= "/" ) then
-        return true
+        if self:IsInManhunt(player) then
+            for k,v in pairs(self.players) do
+                player:SendChatMessage( "[Manhunt] "..v.player:GetName()..": " .. msg, v.player:GetColor() )
+            end
+        else
+            return true
+        end
     end    
     
     local cmdargs = {}
@@ -317,22 +278,22 @@ function Manhunt:ChatMessage(args)
             self:EnterManhunt(player)
         end
     end
-	--[[if (cmdargs[1] == "/pos" ) then
+    if (cmdargs[1] == "/pos" ) then
 		local pos = player:GetPosition()
 		self:MessagePlayer(player, "Your coordinates are ("..pos.x..","..pos.y..","..pos.z..")")
-	end]]
+    end
     return false
 end
 
 function Manhunt:PlayerJoined(args)
     self.players[args.player:GetId()] = nil
-	if self.it == args.player then self.it = nil end
+    if self.it == args.player then self.it = nil end
     self:UpdateScores()
 end
 
 function Manhunt:PlayerQuit(args)
     self.players[args.player:GetId()] = nil
-	if self.it == args.player then self.it = nil end
+    if self.it == args.player then self.it = nil end
     self:UpdateScores()
 end
 
@@ -340,35 +301,35 @@ function Manhunt:PlayerDeath(args)
     if ( not self:IsInManhunt(args.player) ) then
         return true
     end
-	if self.it == args.player then
-		args.player:SetColor( Color(0, 255, 0) )
-		if args.killer then
-			self.it = args.killer
-            self.oldIt = args.killer
-            self.players[self.it:GetId()].pts = self.players[self.it:GetId()].pts + 5
-            Network:Send( self.it, "ManhuntUpdatePoints", self.players[self.it:GetId()].pts )
-			self:MessagePlayers(args.killer:GetName().." killed "..args.player:GetName().." and is now the Hunted!")
-			self.players[args.killer:GetId()]:Spawn()
-		else
-			self.it = nil
-            if args.reason == DamageEntity.None then
-                self:MessagePlayers(args.player:GetName().." has perished!")
-            elseif args.reason == DamageEntity.Physics then
-                self:MessagePlayers(args.player:GetName().." was crushed!")
-            elseif args.reason == DamageEntity.Bullet then
-                self:MessagePlayers(args.player:GetName().." was filled with lead!")
-            elseif args.reason == DamageEntity.Explosion then
-                self:MessagePlayers(args.player:GetName().." asploded!")
-            elseif args.reason == DamageEntity.Vehicle then
-                self:MessagePlayers(args.player:GetName().." was demolished!")
-            end
-		end
-        self:UpdateScores()
-	elseif self.it and self.it == args.killer then
-        self.players[self.it:GetId()].pts = self.players[self.it:GetId()].pts + 1
-        Network:Send( self.it, "ManhuntUpdatePoints", self.players[self.it:GetId()].pts )
-        self:MessagePlayers(args.killer:GetName().." killed Hunter "..args.player:GetName().."!")
-        self:UpdateScores()
+    if self.it == args.player then
+        args.player:SetColor( Color(0, 255, 0) )
+        if args.killer then
+          self.it = args.killer
+          self.oldIt = args.killer
+          self.players[self.it:GetId()].pts = self.players[self.it:GetId()].pts + 5
+          Network:Send( self.it, "ManhuntUpdatePoints", self.players[self.it:GetId()].pts )
+          self:MessagePlayers(args.killer:GetName().." killed "..args.player:GetName().." and is now the Hunted!")
+          self.players[args.killer:GetId()]:Spawn()
+        else
+          self.it = nil
+          if args.reason == DamageEntity.None then
+              self:MessagePlayers(args.player:GetName().." has perished!")
+          elseif args.reason == DamageEntity.Physics then
+              self:MessagePlayers(args.player:GetName().." was crushed!")
+          elseif args.reason == DamageEntity.Bullet then
+              self:MessagePlayers(args.player:GetName().." was filled with lead!")
+          elseif args.reason == DamageEntity.Explosion then
+              self:MessagePlayers(args.player:GetName().." asploded!")
+          elseif args.reason == DamageEntity.Vehicle then
+              self:MessagePlayers(args.player:GetName().." was demolished!")
+          end
+      end
+          self:UpdateScores()
+    elseif self.it and self.it == args.killer then
+          self.players[self.it:GetId()].pts = self.players[self.it:GetId()].pts + 1
+          Network:Send( self.it, "ManhuntUpdatePoints", self.players[self.it:GetId()].pts )
+          self:MessagePlayers(args.killer:GetName().." killed Hunter "..args.player:GetName().."!")
+          self:UpdateScores()
     end
 end
 
@@ -379,7 +340,7 @@ function Manhunt:PlayerSpawn(args)
     
     self:MessagePlayer(args.player, "You have spawned in the Manhunt. Type /hunt if you wish to leave.")
 	
-	self.players[args.player:GetId()]:Spawn()    
+    self.players[args.player:GetId()]:Spawn()
     return false
 end
 
@@ -387,7 +348,7 @@ function Manhunt:PlayerEnterVehicle(args)
     if ( not self:IsInManhunt(args.player) ) then
         return true
     end
-	args.vehicle:SetHealth(0)
+    args.vehicle:SetHealth(0)
 end
 
 function Manhunt:PlayerExitVehicle(args)
@@ -402,4 +363,5 @@ function Manhunt:JoinGamemode( args )
     end
 end
 
-Manhunt = Manhunt()
+--Manhunt = Manhunt(Vector3(-13790, 1200, -13625), 2048)
+Manhunt = Manhunt(Vector3(15210, 350, -13213), 640)

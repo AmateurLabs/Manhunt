@@ -6,11 +6,12 @@
 class 'Manhunt'
 
 function Manhunt:__init()
-	Network:Subscribe( "ManhuntEnter", self, self.Enter )
-	Network:Subscribe( "ManhuntExit", self, self.Exit )
+    Network:Subscribe( "ManhuntEnter", self, self.Enter )
+    Network:Subscribe( "ManhuntExit", self, self.Exit )
     Network:Subscribe( "ManhuntEnterBorder", self, self.EnterBorder )
     Network:Subscribe( "ManhuntExitBorder", self, self.ExitBorder )
-	Network:Subscribe( "ManhuntUpdateItPos", self, self.UpdateItPos )
+    Network:Subscribe( "ManhuntUpdateIt", self, self.UpdateIt )
+    Network:Subscribe( "ManhuntUpdateItPos", self, self.UpdateItPos )
     Network:Subscribe( "ManhuntUpdatePoints", self, self.UpdatePoints )
     Network:Subscribe( "ManhuntUpdateScores", self, self.UpdateScores )
 
@@ -19,32 +20,48 @@ function Manhunt:__init()
     Events:Subscribe( "ModulesLoad", self, self.ModulesLoad )
     Events:Subscribe( "ModuleUnload", self, self.ModuleUnload )
 	
-	self.oob = false
+    self.oob = false
     self.pts = 0
     self.scores = {}
     self.inMode = false
+    self.isIt = false
 end
 
 function Manhunt:Enter()
     self.inMode = true
+    Game:FireEvent("ply.grappling.disable")
+    --Game:FireEvent("ply.parachute.disable")
 end
 
 function Manhunt:Exit()
-	Waypoint:Remove()
+    Waypoint:Remove()
     self.inMode = false
+    Game:FireEvent("ply.grappling.enable")
+    --Game:FireEvent("ply.parachute.enable")
 end
 
 function Manhunt:EnterBorder()
-	self.oob = true
+    self.oob = true
 end
 
 function Manhunt:ExitBorder()
     self.oob = false
 end
 
+function Manhunt:UpdateIt(it)
+    if it then
+        --Game:FireEvent("ply.grappling.disable")
+        --Game:FireEvent("ply.parachute.disable")
+    else
+        --Game:FireEvent("ply.grappling.enable")
+        --Game:FireEvent("ply.parachute.enable")
+    end
+    self.isIt = it
+end
+
 function Manhunt:UpdateItPos(pos)
     Waypoint:Remove()
-	Waypoint:SetPosition(pos)
+    Waypoint:SetPosition(pos)
 end
 
 function Manhunt:UpdatePoints(pts)
